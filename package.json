@@ -3,14 +3,17 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "start": "concurrently \".\\data\\setup.bat\" \"set DEBUG=sast-app-backend:* & node ./bin/www\""
+    "start": "concurrently \".\\data\\setup.bat\" \"set DEBUG=sast-app-backend:* & node ./bin/www\"",
+    "debug": "concurrently \".\\data\\setup.bat\" \"set DEBUG=sast-app-backend:* & node --inspect-brk=9229 ./bin/www\""
   },
   "dependencies": {
     "cookie-parser": "~1.4.3",
     "debug": "~2.6.9",
     "express": "~4.16.0",
     "http-errors": "~1.6.2",
-    "mongoose": "^5.2.7",
+    "lodash": "^4.17.10",
+    "mongoose": "^5.2.8",
+    "mongoose-auto-increment": "^5.0.1",
     "morgan": "~1.9.0"
   },
   "devDependencies": {
