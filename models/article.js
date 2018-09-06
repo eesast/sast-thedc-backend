@@ -1,7 +1,10 @@
 /**
+ * 文章
+ */
+/**
   文章示例
 
-  Notice
+  Article
   {
     title: 'Test',
     content: 'Hello, world!',
