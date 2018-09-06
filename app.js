@@ -19,9 +19,11 @@ db.once("open", () => {
   console.log("Database connected.");
 });
 
-const indexRouter = require("./routes/index");
-const usersRouter = require("./routes/users");
 const articlesRouter = require("./routes/articles");
+const authRouter = require("./routes/auth");
+const indexRouter = require("./routes/index");
+const teamRouter = require("./routes/teams");
+const usersRouter = require("./routes/users");
 
 const app = express();
 
@@ -31,8 +33,10 @@ app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 
 app.use("/", indexRouter);
-app.use("/users", usersRouter);
-app.use("/articles", articlesRouter);
+app.use("/api/articles", articlesRouter);
+app.use("/api/auth", authRouter);
+app.use("/api/users", usersRouter);
+app.use("/api/teams", teamRouter);
 
 // catch 404 and forward to error handler.
 app.use(function(req, res, next) {

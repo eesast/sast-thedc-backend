@@ -1,7 +1,10 @@
 /**
+ * 文章
+ */
+/**
   文章示例
 
-  Notice
+  Article
   {
     title: 'Test',
     content: 'Hello, world!',
@@ -24,9 +27,9 @@ const articleSchema = new mongoose.Schema(
     attachments: [String],
     tags: [String],
     createdAt: { type: Date, default: Date.now },
-    createdBy: String,
+    createdBy: Number,
     updatedAt: { type: Date, default: Date.now },
-    updatedBy: String
+    updatedBy: Number
   },
   {
     collection: "articles"
