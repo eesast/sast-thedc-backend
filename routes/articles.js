@@ -59,7 +59,7 @@ router.get("/:id", (req, res) => {
     if (err) {
       res.status(500).send("500 Internal Server Error.");
     } else if (!article) {
-      res.status(404).send("404 Not Found: article does not exist.");
+      res.status(404).send("404 Not Found: Article does not exist.");
     } else {
       let returnedArticle = {};
       returnedArticle.id = article._id;
@@ -116,7 +116,7 @@ router.post("/", verifyToken, async (req, res) => {
  * PUT
  * 更新文章。
  * @param {String} id 需要更新的文章 ID
- * @returns {String} Location header 或 空
+ * @returns No Content 或 Not Found
  */
 router.put("/:id", verifyToken, async (req, res) => {
   let article;
