@@ -155,8 +155,8 @@ router.get("/:id", verifyToken, async (req, res) => {
 /**
  * POST
  * 新增用户。
- * @returns {string} Location header
- * @returns {string} token
+ * @returns {String} Location header
+ * @returns {String} token
  */
 router.post("/", async (req, res) => {
   // 字段完备性检验。
@@ -304,6 +304,7 @@ router.put("/:id", verifyToken, async (req, res) => {
  * @param {String} id 删除用户的 ID
  * @returns No Content 或 Not Found
  */
+// TODO: 删除用户时，若用户在队伍中时的处理。
 router.delete("/:id", verifyToken, async (req, res) => {
   try {
     // 只有管理员能够删除用户。

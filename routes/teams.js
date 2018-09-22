@@ -85,7 +85,7 @@ router.get("/:id", verifyToken, async (req, res) => {
     if (err) {
       res.status(500).send("500 Internal Server Error.");
     } else if (!team) {
-      res.status(404).send("404 Not Found: team does not exist.");
+      res.status(404).send("404 Not Found: Team does not exist.");
     } else {
       let returnedTeam = {};
       returnedTeam.id = team._id;
@@ -175,6 +175,7 @@ router.put("/:id", verifyToken, async (req, res) => {
 
   // 权限检查。
   if (!isAdmin) {
+    // 只有管理员能更改队伍名和直接更改队伍成员。
     delete req.body.name;
     delete req.body.members;
     if (req.id !== team.captain) {
@@ -191,7 +192,7 @@ router.put("/:id", verifyToken, async (req, res) => {
   try {
     // 成员存在且未加入其他队伍时才合法。
     if (req.body.members) {
-      const isMemberValid = req.body.members.reduce(
+      const isMemberValid = await req.body.members.reduce(
         async (prev, cur) =>
           prev &&
           (await existenceVerifier(User, { _id: cur })) &&
@@ -205,6 +206,13 @@ router.put("/:id", verifyToken, async (req, res) => {
       if (!isMemberValid) {
         return res.status(400).send("400 Bad Request: Invalid members.");
       }
+    }
+
+    if (
+      req.body.name !== team.name &&
+      (await existenceVerifier(Team, { name: req.body.name }))
+    ) {
+      return res.status(409).send("409 Conflict: Team name already exists.");
     }
   } catch (e) {
     if (e instanceof DatabaseError) {
@@ -293,7 +301,7 @@ router.get("/:id/members/", verifyToken, async (req, res) => {
  * 加入队伍。
  * @param {String} id 请求加入的队伍的 ID
  * @param {String} inviteCode 请求加入的队伍的邀请码
- * @returns {string} Location header
+ * @returns {String} Location header
  */
 router.post("/:id/members/", verifyToken, async (req, res) => {
   let team;
@@ -333,7 +341,7 @@ router.post("/:id/members/", verifyToken, async (req, res) => {
         "Location",
         "/teams/" + req.params.id + "/members/" + req.id
       );
-      res.status(204).send("204 No Content.");
+      res.status(201).send("201 Created.");
     }
   });
 });
@@ -343,7 +351,7 @@ router.post("/:id/members/", verifyToken, async (req, res) => {
  * 删除队伍成员。
  * @param {Number} id 队伍 ID
  * @param {Number} uid 要删除的成员的 ID
- * @returns {string} No Content 或 Not Found
+ * @returns {String} No Content 或 Not Found
  */
 router.delete("/:id/members/:uid", verifyToken, async (req, res) => {
   let isAdmin;
@@ -368,6 +376,7 @@ router.delete("/:id/members/:uid", verifyToken, async (req, res) => {
     return res.status(400).send("400 Bad Request: Captain cannot be deleted.");
   }
   if (req.id !== team.captain && req.id != req.params.uid && !isAdmin) {
+    // 队长、管理员可以移除成员，用户自己可以退出队伍。
     return res.status(401).send("401 Unauthorized: Insufficient permissions.");
   }
 
