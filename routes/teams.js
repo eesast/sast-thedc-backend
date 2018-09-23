@@ -192,17 +192,20 @@ router.put("/:id", verifyToken, async (req, res) => {
   try {
     // 成员存在且未加入其他队伍时才合法。
     if (req.body.members) {
-      const isMemberValid = await req.body.members.reduce(
-        async (prev, cur) =>
-          prev &&
-          (await existenceVerifier(User, { _id: cur })) &&
-          !(await existenceVerifier(
-            Team,
-            { _id: { $ne: req.params.id } },
-            { members: { $in: cur } }
-          )),
-        true
-      );
+      let isMemberValid = req.body.members.length < 5;
+      isMemberValid =
+        isMemberValid &&
+        (await req.body.members.reduce(
+          async (prev, cur) =>
+            prev &&
+            (await existenceVerifier(User, { _id: cur })) &&
+            !(await existenceVerifier(
+              Team,
+              { _id: { $ne: req.params.id } },
+              { members: { $in: cur } }
+            )),
+          true
+        ));
       if (!isMemberValid) {
         return res.status(400).send("400 Bad Request: Invalid members.");
       }
@@ -323,6 +326,9 @@ router.post("/:id/members/", verifyToken, async (req, res) => {
   }
   if (!team) {
     return res.status(404).send("404 Not Found: Team does not exist.");
+  }
+  if (team.members.length > 3) {
+    return res.status(409).send("409 Conflict: The number of members exceeds.");
   }
   if (!isFree) {
     return res.status(409).send("409 Conflict: User is already in a team.");

@@ -538,19 +538,25 @@
   403 Forbidden: Incorrect invite code.
   ```
 
-  若**请求者未传入 `x-access-token` 或者 `x-access-token` 非法**，则状态码为 `401`，将返回文本：
+  若**队伍人数超过上限**，则状态码为 `409`，将返回文本：
 
   ```
-  401 Unauthorized: Token required.
-  或
-  401 Unauthorized: Invalid or expired token.
+  409 Conflict: The number of members exceeds.
   ```
 
-  若**队伍不存在**，则状态码为 `404`，将返回文本：
+若**请求者未传入 `x-access-token` 或者 `x-access-token` 非法**，则状态码为 `401`，将返回文本：
 
-  ```
-  404 Not Found: Team does not exist.
-  ```
+```
+401 Unauthorized: Token required.
+或
+401 Unauthorized: Invalid or expired token.
+```
+
+若**队伍不存在**，则状态码为 `404`，将返回文本：
+
+```
+404 Not Found: Team does not exist.
+```
 
 - PUT `/api/teams/:id/members`
 
