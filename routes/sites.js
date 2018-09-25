@@ -146,32 +146,36 @@ router.put("/:id", verifyToken, async (req, res) => {
 
   if (req.body.appointments) {
     // 若存在 appointments 字段则检验其有效性。
-    req.body.appointments.sort(
-      (a, b) => new Date(a.startTime) - new Date(b.startTime)
-    );
-    let duration =
-      new Date(req.body.appointments[0].endTime) -
-      new Date(req.body.appointments[0].startTime);
-    // 预约时长不超过 2 小时。
-    let isAppointmentValid =
-      req.body.appointments[0].teamId != undefined &&
-      duration > 0 &&
-      duration <= 7200000;
-
-    for (let i = 1; i < req.body.appointments.length - 1; ++i) {
-      duration =
-        new Date(req.body.appointments[i].endTime) -
-        new Date(req.body.appointments[i].startTime);
-      isAppointmentValid =
-        isAppointmentValid &&
-        req.body.appointments[i].teamId != undefined &&
+    if (req.body.appointments.length !== 0) {
+      req.body.appointments.sort(
+        (a, b) => new Date(a.startTime) - new Date(b.startTime)
+      );
+      let duration =
+        new Date(req.body.appointments[0].endTime) -
+        new Date(req.body.appointments[0].startTime);
+      // 预约时长不超过 2 小时。
+      let isAppointmentValid =
+        req.body.appointments[0].teamId != undefined &&
         duration > 0 &&
-        duration <= 7200000 &&
-        new Date(req.body.appointments[i].endTime) <=
-          new Date(req.body.appointments[i + 1].startTime);
-    }
-    if (!isAppointmentValid) {
-      return res.status(400).send("400 Bad Request: Invalid appointments.");
+        duration <= 7200000;
+
+      for (let i = 1; i < req.body.appointments.length; ++i) {
+        duration =
+          new Date(req.body.appointments[i].endTime) -
+          new Date(req.body.appointments[i].startTime);
+        isAppointmentValid =
+          isAppointmentValid &&
+          req.body.appointments[i].teamId != undefined &&
+          duration > 0 &&
+          duration <= 7200000 &&
+          new Date(req.body.appointments[i - 1].endTime) <=
+            new Date(req.body.appointments[i].startTime);
+      }
+      if (!isAppointmentValid) {
+        return res.status(400).send("400 Bad Request: Invalid appointments.");
+      }
+    } else {
+      site.appointments = [];
     }
   }
 
