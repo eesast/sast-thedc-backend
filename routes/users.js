@@ -268,7 +268,11 @@ router.put("/:id", verifyToken, async (req, res) => {
     return res.status(404).send("404 Not Found: User does not exist.");
   }
 
-  req.body.group = req.body.group === "admin" ? "admin" : "user";
+  if (!req.body.group) {
+    req.body.group = user.group;
+  } else {
+    req.body.group = req.body.group === "admin" ? "admin" : "user";
+  }
   // 当跨用户修改或添加管理员权限时，需要管理员权限。
   // 修改真实姓名和学号也需要管理员权限。
   if (!isAdmin) {

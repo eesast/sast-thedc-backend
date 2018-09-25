@@ -252,8 +252,14 @@ router.put("/:id", verifyToken, async (req, res) => {
  */
 router.delete("/:id", verifyToken, async (req, res) => {
   try {
-    // 只有管理员能够删除队伍。
-    if (!(await existenceVerifier(User, { _id: req.id, group: "admin" }))) {
+    // 只有管理员或队长能够删除队伍。
+    const team = await existenceVerifier(Team, { _id: req.params.id });
+    if (
+      !(
+        team.captain === req.id ||
+        (await existenceVerifier(User, { _id: req.id, group: "admin" }))
+      )
+    ) {
       return res
         .status(401)
         .send("401 Unauthorized: Insufficient permissions.");
@@ -265,11 +271,9 @@ router.delete("/:id", verifyToken, async (req, res) => {
     throw e;
   }
 
-  Team.findByIdAndDelete(req.params.id, (err, team) => {
+  Team.deleteOne({ _id: req.params.id }, err => {
     if (err) {
       res.status(500).send("500 Internal Server Error.");
-    } else if (!team) {
-      res.status(404).send("404 Not Found: Team does not exist.");
     } else {
       res.status(204).send("204 No Content.");
     }
