@@ -53,6 +53,7 @@
   {
     "auth": true,
     "token": "token",
+    "id": 0,
     "username": "username"
   }
   ```

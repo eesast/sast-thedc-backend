@@ -279,7 +279,7 @@ router.get("/:id/appointments/", verifyToken, async (req, res) => {
     (err, result) => {
       if (err) {
         res.status(500).send("500 Internal Server Error.");
-      } else if (!result[0]) {
+      } else if (!(result && result[0])) {
         res.status(200).end(JSON.stringify([]));
       } else {
         res.status(200).end(JSON.stringify(result[0].appointments));
@@ -328,22 +328,12 @@ router.post("/:id/appointments/", verifyToken, async (req, res) => {
         _id: req.params.id,
         appointments: {
           $elemMatch: {
-            $or: [
-              {
-                startTime: {
-                  $gt: new Date(req.body.startTime),
-                  $lt: new Date(req.body.endTime)
-                }
-              },
-              {
-                startTime: {
-                  $lt: new Date(req.body.startTime)
-                },
-                endTime: {
-                  $gt: new Date(req.body.endTime)
-                }
-              }
-            ]
+            startTime: {
+              $lt: new Date(req.body.endTime)
+            },
+            endTime: {
+              $gt: new Date(req.body.startTime)
+            }
           }
         }
       }));
@@ -376,7 +366,7 @@ router.post("/:id/appointments/", verifyToken, async (req, res) => {
         }
       }
     ]).then(result => {
-      if (!result) {
+      if (!(result && result[0])) {
         appointmentCount = 0;
       } else {
         appointmentCount = result[0].count;
