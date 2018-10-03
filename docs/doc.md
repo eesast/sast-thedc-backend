@@ -487,10 +487,12 @@
   409 Conflict: User is already in a team.
   ```
 
-  若**缺失队伍名字段**，则状态码为 `422`，将返回文本：
+  若**字段缺失或非法**，则状态码为 `422`，将返回 JSON 格式的错误信息，例如：
 
-  ```
-  422 Unprocessable Entity: Missing essential post data.
+  ```json
+  {
+    "messages": ["Path `name` is required."]
+  }
   ```
 
   若**请求者未传入 `x-access-token` 或者 `x-access-token` 非法**，则状态码为 `401`，将返回文本：
@@ -545,19 +547,19 @@
   409 Conflict: The number of members exceeds.
   ```
 
-若**请求者未传入 `x-access-token` 或者 `x-access-token` 非法**，则状态码为 `401`，将返回文本：
+  若**请求者未传入 `x-access-token` 或者 `x-access-token` 非法**，则状态码为 `401`，将返回文本：
 
-```
-401 Unauthorized: Token required.
-或
-401 Unauthorized: Invalid or expired token.
-```
+  ```
+  401 Unauthorized: Token required.
+  或
+  401 Unauthorized: Invalid or expired token.
+  ```
 
-若**队伍不存在**，则状态码为 `404`，将返回文本：
+  若**队伍不存在**，则状态码为 `404`，将返回文本：
 
-```
-404 Not Found: Team does not exist.
-```
+  ```
+  404 Not Found: Team does not exist.
+  ```
 
 - PUT `/api/teams/:id/members`
 
@@ -753,6 +755,9 @@
     "id": 0,
     "name": "场地 1",
     "description": "主楼 xxx",
+    "capacity": 10, // 容纳人数。
+    "minDuration": 60, // 最短/最长预约时长，单位为分钟。
+    "maxDuration": 120,
     "appointments": [
       {
         "_id": "5ba50cfb7db5b123cc01c22d", // 请忽略本字段。
@@ -841,7 +846,10 @@
   ```json
   {
     "name": "name",
-    "description": "description" // 可以没有该字段。
+    "description": "description", // 可选。
+    "capacity": 10, // 可选，默认为 10.
+    "minDuration": 60, // 可选，默认为 60.
+    "maxDuration": 120 // 可选，默认为 120.
   }
   ```
 
@@ -895,7 +903,7 @@
 
   若**预约成功**，则状态码为 `201`。
 
-  若**预约时间不合法（如超过 2 小时，与他人时间重叠）**，则状态码为 `400`，将返回文本：
+  若**预约不合法（如时长不合法）**，则状态码为 `400`，将返回文本：
 
   ```
   400 Bad Request: Invalid appointment.
@@ -907,10 +915,18 @@
   400 Bad Request: User is not in a team.
   ```
 
-  若**一天内预约次数超过 3 次**，则状态码为 `403`，将返回文本：
+  若**超出队伍可用的预约次数**，则状态码为 `403`，将返回文本：
 
   ```
-  403 Forbidden: The number of appointments per day exceeds.
+  403 Forbidden: The number of appointments exceeds.
+  ```
+
+  若**预约时间冲突或已达到场地最大容纳量**，则状态码为 `409`，将返回文本：
+
+  ```
+  409 Conflict: The team already has an appointment during this period.
+  或
+  409 Conflict: The site has reached its maximum capacity.
   ```
 
   若**缺失预约时间字段**，则状态码为 `422`，将返回文本：
@@ -1002,9 +1018,17 @@
   404 Not Found: Site does not exist.
   ```
 
+  若**字段非法**，则状态码为 `422`，将返回 JSON 格式的错误信息，例如：
+
+  ```json
+  {
+    "messages": ["Path `name` is required."]
+  }
+  ```
+
 * DELETE `/api/sites/:id`
 
-  删除相应 id 的队伍。需要管理员权限。
+  删除相应 id 的场地。需要管理员权限。
 
   #### Header
 
@@ -1034,15 +1058,16 @@
 
 * DELETE `/api/sites/:id/appointments`
 
-  删除相应 id 场地中，起始预约时间为某个时刻的预约。（队长或管理员功能）
+  删除相应 id 场地中，特定 id 队伍的起始预约时间为某个时刻的预约。（队长或管理员功能）
 
   管理员可取消所有队伍的预约，队长仅能取消本队的预约。
 
   #### Query
 
-  | Key       | Value        | Description            |
-  | --------- | ------------ | ---------------------- |
-  | startTime | ISO 格式日期 | 要删除的预约的起始时间 |
+  | Key       | Value        | Description                 |
+  | --------- | ------------ | --------------------------- |
+  | startTime | ISO 格式日期 | 要删除的预约的起始时间      |
+  | teamId    | 队伍 id      | 要删除的预约所属的队伍的 id |
 
   #### Header
 
@@ -1070,10 +1095,18 @@
   401 Unauthorized: Insufficient permissions.
   ```
 
-  若**场地或预约不存在**，则状态码为 `404`，将返回文本：
+  若**场地、队伍或预约不存在**，则状态码为 `404`，将返回文本：
 
   ```
+  404 Not Found: Team does not exist
+  或
   404 Not Found: Site does not exist.
   或
-  404 Not Found: Appointment does not exist.
+  404 Not Found: No such appointment.
+  ```
+
+  若**缺失字段**，则状态码为 `422`，将返回文本：
+
+  ```
+  422 Unprocessable Entity: Missing essential post data.
   ```

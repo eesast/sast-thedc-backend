@@ -6,6 +6,7 @@ const Site = require("../models/site");
 const existenceVerifier = require("../helpers/existenceVerifier");
 const DatabaseError = require("../errors/DatabaseError");
 const verifyToken = require("../middlewares/verifyToken");
+const appointmentConfig = require("../config/appointment");
 
 const router = express.Router();
 
@@ -34,6 +35,9 @@ router.get("/", verifyToken, async (req, res) => {
         site.id = n._id;
         site.name = n.name;
         site.description = n.description;
+        site.capacity = n.capacity;
+        site.minDuration = n.minDuration;
+        site.maxDuration = n.maxDuration;
         site.appointments = n.appointments;
         return site;
       });
@@ -60,6 +64,9 @@ router.get("/:id", verifyToken, async (req, res) => {
       returnedSite.id = site._id;
       returnedSite.name = site.name;
       returnedSite.description = site.description;
+      returnedSite.capacity = site.capacity;
+      returnedSite.minDuration = site.minDuration;
+      returnedSite.maxDuration = site.maxDuration;
       returnedSite.appointments = site.appointments;
       res.setHeader("Content-Type", "application/json; charset=utf-8");
       res.status(200).end(JSON.stringify(returnedSite));
@@ -81,11 +88,6 @@ router.post("/", verifyToken, async (req, res) => {
         .status(401)
         .send("401 Unauthorized: Insufficient permissions.");
     }
-    if (!req.body.name) {
-      return res
-        .status(422)
-        .send("422 Unprocessable Entity: Missing essential post data.");
-    }
     if (await existenceVerifier(Site, { name: req.body.name })) {
       res.setHeader("Location", "/sites");
       return res.status(409).send("409 Conflict: Site name already exists.");
@@ -103,7 +105,11 @@ router.post("/", verifyToken, async (req, res) => {
   const newSite = new Site(req.body);
   newSite.save((err, site) => {
     if (err) {
-      res.status(500).send("500 Internal Server Error.");
+      if (err.name === "ValidationError") {
+        handleValidationError(err, res);
+      } else {
+        res.status(500).send("500 Internal Server Error.");
+      }
     } else {
       res.setHeader("Location", "/sites/" + site._id);
       res.status(201).send("201 Created.");
@@ -118,6 +124,7 @@ router.post("/", verifyToken, async (req, res) => {
  * @returns No Content 或 Not Found
  */
 // TODO: 判断预约中指定 teamId 的队伍是否存在，以及限制预约次数。
+// TODO: 更新 appointment 有效性判定规则，使符合新要求（与 POST 一致）。
 router.put("/:id", verifyToken, async (req, res) => {
   let site;
   try {
@@ -150,14 +157,16 @@ router.put("/:id", verifyToken, async (req, res) => {
       req.body.appointments.sort(
         (a, b) => new Date(a.startTime) - new Date(b.startTime)
       );
+      // 检验预约时长。
       let duration =
         new Date(req.body.appointments[0].endTime) -
         new Date(req.body.appointments[0].startTime);
-      // 预约时长不超过 2 小时。
+      const minDuration = (req.body.minDuration || site.minDuration) * 60000;
+      const maxDuration = (req.body.maxDuration || site.maxDuration) * 60000;
       let isAppointmentValid =
         req.body.appointments[0].teamId != undefined &&
-        duration > 0 &&
-        duration <= 7200000;
+        duration >= minDuration &&
+        duration <= maxDuration;
 
       for (let i = 1; i < req.body.appointments.length; ++i) {
         duration =
@@ -166,8 +175,8 @@ router.put("/:id", verifyToken, async (req, res) => {
         isAppointmentValid =
           isAppointmentValid &&
           req.body.appointments[i].teamId != undefined &&
-          duration > 0 &&
-          duration <= 7200000 &&
+          duration >= minDuration &&
+          duration <= maxDuration &&
           new Date(req.body.appointments[i - 1].endTime) <=
             new Date(req.body.appointments[i].startTime);
       }
@@ -185,7 +194,11 @@ router.put("/:id", verifyToken, async (req, res) => {
 
   site.save(err => {
     if (err) {
-      res.status(500).send("500 Internal Server Error.");
+      if (err.name === "ValidationError") {
+        handleValidationError(err, res);
+      } else {
+        res.status(500).send("500 Internal Server Error.");
+      }
     } else {
       res.status(204).send("204 No Content.");
     }
@@ -306,6 +319,10 @@ router.post("/:id/appointments/", verifyToken, async (req, res) => {
       .status(422)
       .send("422 Unprocessable Entity: Missing essential post data.");
   }
+
+  const startTime = new Date(req.body.startTime);
+  const endTime = new Date(req.body.endTime);
+
   try {
     site = await existenceVerifier(Site, { _id: req.params.id });
     if (!site) {
@@ -322,33 +339,15 @@ router.post("/:id/appointments/", verifyToken, async (req, res) => {
         .send("401 Unauthorized: Insufficient permissions.");
     }
 
-    let duration = new Date(req.body.endTime) - new Date(req.body.startTime);
-    // 预约时长不超过 2 小时。
-    let isAppointmentValid = duration > 0 && duration <= 7200000;
-    // 与其他预约记录比对时间，检验预约有效性。
-    isAppointmentValid =
-      isAppointmentValid &&
-      !(await existenceVerifier(Site, {
-        _id: req.params.id,
-        appointments: {
-          $elemMatch: {
-            startTime: {
-              $lt: new Date(req.body.endTime)
-            },
-            endTime: {
-              $gt: new Date(req.body.startTime)
-            }
-          }
-        }
-      }));
-    if (!isAppointmentValid) {
+    // 检验预约时长。
+    const duration = endTime - startTime;
+    const minDuration = (req.body.minDuration || site.minDuration) * 60000;
+    const maxDuration = (req.body.maxDuration || site.maxDuration) * 60000;
+    if (!(duration >= minDuration && duration <= maxDuration)) {
       return res.status(400).send("400 Bad Request: Invalid appointment.");
     }
 
-    // 每队每天的预约次数不能超过 3 次。
-    const appointmentDate = new Date(
-      new Date(req.body.startTime).toLocaleDateString()
-    );
+    // 检验该队伍总有效预约数量是否超出。
     let appointmentCount;
     await Site.aggregate([
       {
@@ -358,8 +357,7 @@ router.post("/:id/appointments/", verifyToken, async (req, res) => {
         $match: {
           "appointments.teamId": team._id,
           "appointments.startTime": {
-            $gt: appointmentDate,
-            $lt: new Date(appointmentDate.getTime() + 86400000)
+            $gt: new Date()
           }
         }
       },
@@ -377,10 +375,104 @@ router.post("/:id/appointments/", verifyToken, async (req, res) => {
       }
     });
 
-    if (appointmentCount > 2) {
+    if (appointmentCount >= appointmentConfig.maxAppointments) {
       return res
         .status(403)
-        .send("403 Forbidden: The number of appointments per day exceeds.");
+        .send("403 Forbidden: The number of appointments exceeds.");
+    }
+
+    // 队伍在请求的时间段不应该已经有预约了。
+    if (
+      await existenceVerifier(Site, {
+        $or: [
+          {
+            "appointments.startTime": {
+              $gte: startTime,
+              $lt: endTime
+            }
+          },
+          {
+            "appointments.endTime": {
+              $gt: startTime,
+              $lte: endTime
+            }
+          }
+        ]
+      })
+    ) {
+      return res
+        .status(409)
+        .send(
+          "409 Conflict: The team already has an appointment during this period."
+        );
+    }
+
+    // 统计该场地该时间段内的最大队伍重叠数。
+    let maxOverlap = 0;
+    // 查找该场地时间段内的所有预约。
+    await Site.aggregate([
+      {
+        $unwind: "$appointments"
+      },
+      {
+        $match: {
+          _id: site._id,
+          $or: [
+            {
+              "appointments.startTime": {
+                $gte: startTime,
+                $lt: endTime
+              }
+            },
+            {
+              "appointments.endTime": {
+                $gt: startTime,
+                $lte: endTime
+              }
+            }
+          ]
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          startTime: { $push: "$appointments.startTime" },
+          endTime: { $push: "$appointments.endTime" }
+        }
+      }
+    ]).then(result => {
+      if (!(result && result[0])) {
+        maxOverlap = 0;
+      } else {
+        // 求最大重叠数。
+        let overlap = 0;
+        const teamCount = result[0].startTime.length;
+        result[0].startTime.sort();
+        result[0].endTime.sort();
+        let i = 0,
+          j = 0;
+        while (i < teamCount && j < teamCount) {
+          let tmp = result[0].startTime[i] - result[0].endTime[j];
+          if (tmp == 0) {
+            ++i;
+            ++j;
+          } else if (tmp < 0) {
+            ++i;
+            ++overlap;
+          } else {
+            ++j;
+            --overlap;
+          }
+          if (overlap > maxOverlap) maxOverlap = overlap;
+        }
+      }
+    });
+
+    // 最大重叠数不应超过场地容纳量。
+    if (maxOverlap >= site.capacity) {
+      return res
+        .status(409)
+        .send("409 Conflict: The site has reached its maximum capacity.");
     }
   } catch (e) {
     if (e instanceof DatabaseError) {
@@ -389,47 +481,59 @@ router.post("/:id/appointments/", verifyToken, async (req, res) => {
     throw e;
   }
 
-  site.appointments.push({
-    teamId: team._id,
-    startTime: req.body.startTime,
-    endTime: req.body.endTime
-  });
-  site.markModified("appointments");
-  site.save(err => {
-    if (err) {
-      res.status(500).send("500 Internal Server Error.");
-    } else {
-      res.status(201).send("201 Created.");
+  await Site.update(
+    { _id: site._id },
+    {
+      $push: {
+        appointments: {
+          teamId: team._id,
+          startTime: startTime,
+          endTime: endTime
+        }
+      }
+    },
+    err => {
+      if (err) {
+        res.status(500).send("500 Internal Server Error.");
+      } else {
+        res.status(201).send("201 Created.");
+      }
     }
-  });
+  );
 });
 
 /**
  * DELETE
  * 删除预约。
  * @param {Number} id 场地 ID
- * @param {Date} uid 要删除的预约的开始时间
+ * @param {Number} teamId 队伍 ID
+ * @param {Date} startTime 要删除的预约的开始时间
  * @returns {String} No Content 或 Not Found
  */
 router.delete("/:id/appointments", verifyToken, async (req, res) => {
   let isAdmin;
   let team;
 
-  if (!req.query.startTime) {
+  if (!req.query.startTime || !req.query.teamId) {
     return res
       .status(422)
       .send("422 Unprocessable Entity: Missing essential post data.");
   }
   try {
     site = await existenceVerifier(Site, { _id: req.params.id });
+    team = await existenceVerifier(Team, { _id: req.query.teamId });
     isAdmin = await existenceVerifier(User, { _id: req.id, group: "admin" });
     if (!site) {
       return res.status(404).send("404 Not Found: Site does not exist.");
     }
-
-    team = await existenceVerifier(Team, { members: { $in: req.id } });
     if (!team) {
-      return res.status(400).send("400 Bad Request: User is not in a team.");
+      return res.status(404).send("404 Not Found: Team does not exist");
+    }
+    // 仅有队长或管理员能取消预约。
+    if (team.captain !== req.id || !isAdmin) {
+      return res
+        .status(401)
+        .send("401 Unauthorized: Insufficient permissions.");
     }
   } catch (e) {
     if (e instanceof DatabaseError) {
@@ -438,36 +542,34 @@ router.delete("/:id/appointments", verifyToken, async (req, res) => {
     throw e;
   }
 
-  // 查找是否有对应预约。
-  let isAppointmentFound = false;
-  for (let index in site.appointments) {
-    if (
-      site.appointments[index].startTime - new Date(req.query.startTime) ===
-      0
-    ) {
-      isAppointmentFound = true;
-      // 仅有队长或管理员能取消预约。
-      if (site.appointments[index].teamId === team._id || isAdmin) {
-        site.appointments.splice(index, 1);
+  await Site.update(
+    { _id: req.params.id },
+    {
+      $pull: {
+        appointments: {
+          teamId: team._id,
+          startTime: new Date(req.query.startTime)
+        }
+      }
+    },
+    (err, raw) => {
+      if (err) {
+        res.status(500).send("500 Internal Server Error.");
+      } else if (raw["nModified"] === 0) {
+        res.status(404).send("404 Not Found: No such appointment.");
       } else {
-        return res
-          .status(401)
-          .send("401 Unauthorized: Insufficient permissions.");
+        res.status(204).send("204 No Content.");
       }
     }
-  }
-  if (!isAppointmentFound) {
-    return res.status(404).send("404 Not Found: Appointment does not exist.");
-  }
-
-  site.markModified("appointments");
-  site.save(err => {
-    if (err) {
-      res.status(500).send("500 Internal Server Error.");
-    } else {
-      res.status(204).send("204 No Content.");
-    }
-  });
+  );
 });
+
+function handleValidationError(err, res) {
+  const messages = [];
+  for (let field in err.errors) {
+    messages.push(err.errors[field].message);
+  }
+  res.status(422).json({ messages });
+}
 
 module.exports = router;
