@@ -36,7 +36,6 @@ router.get("/", verifyToken, async (req, res) => {
 
   let query;
   query = Team.find({})
-    .sort({ name: sort })
     .skip(begin - 1)
     .limit(end - begin + 1);
 
