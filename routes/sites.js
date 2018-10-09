@@ -481,7 +481,7 @@ router.post("/:id/appointments/", verifyToken, async (req, res) => {
     throw e;
   }
 
-  await Site.update(
+  Site.update(
     { _id: site._id },
     {
       $push: {
@@ -542,7 +542,7 @@ router.delete("/:id/appointments", verifyToken, async (req, res) => {
     throw e;
   }
 
-  await Site.update(
+  Site.update(
     { _id: req.params.id },
     {
       $pull: {
