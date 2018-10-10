@@ -384,20 +384,25 @@ router.post("/:id/appointments/", verifyToken, async (req, res) => {
     // 队伍在请求的时间段不应该已经有预约了。
     if (
       await existenceVerifier(Site, {
-        $or: [
-          {
-            "appointments.startTime": {
-              $gte: startTime,
-              $lt: endTime
-            }
-          },
-          {
-            "appointments.endTime": {
-              $gt: startTime,
-              $lte: endTime
-            }
+        appointments: {
+          $elemMatch: {
+            teamId: team._id,
+            $or: [
+              {
+                startTime: {
+                  $gte: startTime,
+                  $lt: endTime
+                }
+              },
+              {
+                endTime: {
+                  $gt: startTime,
+                  $lte: endTime
+                }
+              }
+            ]
           }
-        ]
+        }
       })
     ) {
       return res
@@ -530,7 +535,7 @@ router.delete("/:id/appointments", verifyToken, async (req, res) => {
       return res.status(404).send("404 Not Found: Team does not exist");
     }
     // 仅有队长或管理员能取消预约。
-    if (team.captain !== req.id || !isAdmin) {
+    if (!(team.captain === req.id || isAdmin)) {
       return res
         .status(401)
         .send("401 Unauthorized: Insufficient permissions.");
