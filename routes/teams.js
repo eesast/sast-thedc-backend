@@ -2,6 +2,7 @@ const express = require("express");
 const _ = require("lodash");
 const Team = require("../models/team");
 const User = require("../models/user");
+const Site = require("../models/site");
 const existenceVerifier = require("../helpers/existenceVerifier");
 const DatabaseError = require("../errors/DatabaseError");
 const verifyToken = require("../middlewares/verifyToken");
@@ -253,6 +254,9 @@ router.delete("/:id", verifyToken, async (req, res) => {
   try {
     // 只有管理员或队长能够删除队伍。
     const team = await existenceVerifier(Team, { _id: req.params.id });
+    if (!team) {
+      return res.status(404).send("404 Not Found: The team does not exist.");
+    }
     if (
       !(
         team.captain === req.id ||
@@ -274,7 +278,22 @@ router.delete("/:id", verifyToken, async (req, res) => {
     if (err) {
       res.status(500).send("500 Internal Server Error.");
     } else {
-      res.status(204).send("204 No Content.");
+      Site.update(
+        {
+          $pull: {
+            appointments: {
+              teamId: req.params.id
+            }
+          }
+        },
+        err => {
+          if (err) {
+            res.status(500).send("500 Internal Server Error.");
+          } else {
+            res.status(204).send("204 No Content.");
+          }
+        }
+      );
     }
   });
 });
